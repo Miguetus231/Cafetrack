@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1117">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-title" content="CaféTrack">
+<meta name="mobile-web-app-capable" content="yes">
+<title>CaféTrack — Simulación de Eventos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #0f1117;
+  --bg2: #181c27;
+  --bg3: #1e2333;
+  --surface: #252b3d;
+  --surface2: #2d3450;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0f2ff;
+  --text2: #9ba3c0;
+  --text3: #5c6480;
+  --accent: #5c8fff;
+  --accent2: #3d6fe8;
+  --green: #3dd68c;
+  --green2: #1a6b43;
+  --amber: #f9c846;
+  --amber2: #8a6a0a;
+  --red: #ff5c5c;
+  --red2: #7a1a1a;
+  --purple: #a78bfa;
+  --cyan: #22d3ee;
+  --teal: #14b8a6;
+  --r: 12px;
+  --r2: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; font-family: 'Syne', sans-serif; background: var(--bg); color: var(--text); }
+body { display: flex; flex-direction: column; }
+
+/* HEADER */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 10px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; z-index: 10;
+}
+.header-brand { display: flex; align-items: center; gap: 10px; }
+.header-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--purple)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.header-title { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+.header-sub { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; margin-top: 1px; }
+.header-actions { display: flex; gap: 8px; }
+
+/* TABS */
+.tabs {
+  display: flex; background: var(--bg2); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tab {
+  flex: 1; padding: 10px 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+  text-align: center; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.15s; text-transform: uppercase;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 10px;
+  font-size: 10px; padding: 1px 5px; margin-left: 4px; min-width: 18px;
+}
+.tab-badge.done { background: var(--text3); }
+
+/* MAIN SCROLL */
+.main { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.main::-webkit-scrollbar { width: 3px; }
+.main::-webkit-scrollbar-track { background: transparent; }
+.main::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 2px; }
+
+/* FAB */
+.fab {
+  position: fixed; bottom: 20px; right: 16px; z-index: 100;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--accent); border: none; color: #fff;
+  font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(92,143,255,0.4);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.fab:active { transform: scale(0.93); box-shadow: 0 2px 10px rgba(92,143,255,0.3); }
+
+/* CLIENT CARD */
+.client-card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--r); overflow: hidden; transition: border-color 0.2s;
+}
+.client-card.active-card { border-color: rgba(92,143,255,0.3); }
+.client-card.done-card { opacity: 0.7; border-color: var(--border); }
+
+.card-header {
+  padding: 12px 14px 10px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.card-id { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text3); }
+.card-name { font-size: 15px; font-weight: 700; margin-top: 2px; }
+.card-status { display: flex; align-items: center; gap: 6px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.waiting { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.status-dot.ordering { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.status-dot.preparing { background: var(--purple); box-shadow: 0 0 6px var(--purple); animation: pulse 1.5s infinite; }
+.status-dot.ready { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-dot.cashier { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1.5s infinite; }
+.status-dot.done { background: var(--text3); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.status-text { font-size: 11px; font-weight: 600; color: var(--text2); }
+
+.card-timer { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--cyan); }
+
+/* EVENTS GRID */
+.events-section { padding: 10px 12px; }
+.section-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.events-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.event-btn {
+  padding: 10px 8px; border-radius: var(--r2); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text); font-family: 'Syne', sans-serif;
+  font-size: 12px; font-weight: 600; cursor: pointer; text-align: left;
+  transition: all 0.12s; display: flex; flex-direction: column; gap: 3px; min-height: 52px;
+}
+.event-btn:active { transform: scale(0.96); }
+.event-btn.done-btn { background: var(--bg3); border-color: rgba(61,214,140,0.3); color: var(--green); }
+.event-btn.locked { opacity: 0.35; cursor: not-allowed; }
+.event-label { font-size: 11px; font-weight: 700; }
+.event-time { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text3); }
+
+/* PARALLEL PROCESSES */
+.parallel-section { padding: 0 12px 10px; }
+.process-row { display: flex; gap: 6px; margin-bottom: 6px; align-items: center; }
+.process-label { font-size: 12px; font-weight: 600; color: var(--text2); flex: 1; display: flex; align-items: center; gap: 6px; }
+.process-icon { font-size: 14px; }
+.process-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.process-indicator.running { background: var(--purple); animation: pulse 1.5s infinite; }
+.process-indicator.done { background: var(--green); }
+.proc-btn {
+  padding: 8px 12px; border-radius: var(--r2); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text); font-size: 11px; font-weight: 700;
+  cursor: pointer; transition: all 0.12s; font-family: 'Syne', sans-serif;
+  white-space: nowrap;
+}
+.proc-btn:active { transform: scale(0.95); }
+.proc-btn.running { background: rgba(167,139,250,0.15); border-color: rgba(167,139,250,0.4); color: var(--purple); }
+.proc-btn.proc-done { background: rgba(61,214,140,0.1); border-color: rgba(61,214,140,0.3); color: var(--green); }
+.proc-time { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text3); display: block; margin-top: 2px; }
+
+/* CARD ATTRS */
+.attrs-section { padding: 0 12px 12px; }
+.attrs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.attr-field { display: flex; flex-direction: column; gap: 4px; }
+.attr-label { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text3); }
+.attr-input {
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r2);
+  color: var(--text); font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 500;
+  padding: 8px 10px; width: 100%; outline: none; transition: border-color 0.15s;
+}
+.attr-input:focus { border-color: var(--accent); }
+.attr-input.full-width { grid-column: 1/-1; }
+select.attr-input { cursor: pointer; }
+
+/* CARD ACTIONS */
+.card-actions { padding: 10px 12px 12px; display: flex; gap: 8px; border-top: 1px solid var(--border); }
+.action-btn {
+  flex: 1; padding: 10px; border-radius: var(--r2); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text2); font-size: 12px; font-weight: 700;
+  cursor: pointer; text-align: center; transition: all 0.12s; font-family: 'Syne', sans-serif;
+}
+.action-btn:active { transform: scale(0.96); }
+.action-btn.finish-btn { background: rgba(61,214,140,0.1); border-color: rgba(61,214,140,0.3); color: var(--green); }
+.action-btn.expand-btn.expanded { background: rgba(92,143,255,0.1); border-color: rgba(92,143,255,0.3); color: var(--accent); }
+
+/* COLLAPSED CARD */
+.card-collapsed { padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
+.card-collapsed .card-info { flex: 1; }
+.expand-row { display: flex; gap: 8px; }
+
+/* EXPORT PAGE */
+.export-page { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.big-btn {
+  width: 100%; padding: 16px; border-radius: var(--r); border: none;
+  font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+  transition: all 0.15s;
+}
+.big-btn:active { transform: scale(0.97); }
+.big-btn.export-xlsx { background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff; }
+.big-btn.export-csv { background: linear-gradient(135deg, #238636, #2ea043); color: #fff; }
+.big-btn.danger { background: rgba(255,92,92,0.12); border: 1px solid rgba(255,92,92,0.3); color: var(--red); }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2); padding: 14px; }
+.stat-val { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600; color: var(--text); }
+.stat-lbl { font-size: 11px; color: var(--text3); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* HISTORY LIST */
+.history-item {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--r2);
+  padding: 12px; display: flex; align-items: center; gap: 10px;
+}
+.history-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+.history-info { flex: 1; }
+.history-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text3); }
+.history-name { font-size: 13px; font-weight: 600; }
+.history-time { font-size: 11px; color: var(--text2); }
+
+/* MODAL */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.modal-sheet {
+  background: var(--bg2); border-radius: 20px 20px 0 0;
+  border-top: 1px solid var(--border2); padding: 20px 16px 32px;
+  width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+}
+.modal-handle { width: 36px; height: 4px; background: var(--surface2); border-radius: 2px; margin: 0 auto 16px; }
+.modal-title { font-size: 18px; font-weight: 800; margin-bottom: 16px; }
+.modal-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.modal-label { font-size: 12px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+.modal-input {
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r2);
+  color: var(--text); font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 500;
+  padding: 12px 14px; width: 100%; outline: none;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.modal-btn {
+  flex: 1; padding: 14px; border-radius: var(--r2); border: none;
+  font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.modal-btn.primary { background: var(--accent); color: #fff; }
+.modal-btn.secondary { background: var(--surface); color: var(--text2); }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+  background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+  padding: 10px 18px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  z-index: 300; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+
+/* EMPTY */
+.empty-state { text-align: center; padding: 48px 24px; color: var(--text3); }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-text { font-size: 15px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.empty-sub { font-size: 13px; }
+
+/* NOTES */
+.notes-input { min-height: 60px; resize: none; font-family: 'Syne', sans-serif; }
+
+/* CHIP ROW */
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text2); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.12s; font-family: 'Syne', sans-serif;
+}
+.chip.selected { background: rgba(92,143,255,0.15); border-color: rgba(92,143,255,0.5); color: var(--accent); }
+.chip:active { transform: scale(0.95); }
+
+/* FILTER BAR */
+.filter-bar { display: flex; gap: 6px; padding: 0 12px 8px; flex-shrink: 0; }
+.filter-chip {
+  padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text3); font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: 'Syne', sans-serif; white-space: nowrap;
+  transition: all 0.12s;
+}
+.filter-chip.active { background: rgba(92,143,255,0.15); border-color: rgba(92,143,255,0.4); color: var(--accent); }
+
+/* INLINE CHECK */
+.checkbox-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.checkbox-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.checkbox-row label { font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer; }
+
+/* COLLAPSIBLE */
+.collapse-content { overflow: hidden; transition: max-height 0.25s ease; }
+
+/* ITEMS MANAGER */
+.items-section { padding: 0 12px 10px; }
+.item-row {
+  display: flex; align-items: center; gap: 6px; padding: 7px 10px;
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r2);
+  margin-bottom: 5px;
+}
+.item-qty-btn {
+  width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border2);
+  background: var(--bg3); color: var(--text); font-size: 16px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.1s; font-family: 'Syne', sans-serif;
+}
+.item-qty-btn:active { transform: scale(0.9); }
+.item-qty { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; min-width: 20px; text-align: center; color: var(--cyan); }
+.item-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); }
+.item-cat { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; }
+.item-cat.food { background: rgba(249,200,70,0.15); color: var(--amber); border: 1px solid rgba(249,200,70,0.3); }
+.item-cat.drink { background: rgba(34,211,238,0.12); color: var(--cyan); border: 1px solid rgba(34,211,238,0.3); }
+.item-cat.extra { background: rgba(167,139,250,0.12); color: var(--purple); border: 1px solid rgba(167,139,250,0.3); }
+.item-del { width: 24px; height: 24px; border-radius: 5px; border: none; background: rgba(255,92,92,0.12); color: var(--red); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.add-item-row { display: flex; gap: 6px; margin-top: 6px; }
+.add-item-input {
+  flex: 1; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r2);
+  color: var(--text); font-family: 'Syne', sans-serif; font-size: 13px;
+  padding: 8px 10px; outline: none; min-width: 0;
+}
+.add-item-input:focus { border-color: var(--accent); }
+.add-item-cat {
+  background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r2);
+  color: var(--text2); font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600;
+  padding: 8px 8px; cursor: pointer; outline: none; flex-shrink: 0;
+}
+.add-item-btn {
+  padding: 8px 14px; border-radius: var(--r2); border: 1px solid rgba(92,143,255,0.4);
+  background: rgba(92,143,255,0.12); color: var(--accent); font-size: 18px; font-weight: 700;
+  cursor: pointer; flex-shrink: 0; font-family: 'Syne', sans-serif;
+}
+.items-summary { font-size: 11px; color: var(--text3); margin-bottom: 6px; }
+.items-summary span { color: var(--cyan); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+/* CASHIER STATUS */
+.cashier-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px; }
+.cashier-badge.in-cashier { background: rgba(249,200,70,0.15); color: var(--amber); border: 1px solid rgba(249,200,70,0.3); }
+.cashier-badge.paid { background: rgba(61,214,140,0.1); color: var(--green); border: 1px solid rgba(61,214,140,0.3); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand">
+    <div class="header-icon">☕</div>
+    <div>
+      <div class="header-title">CaféTrack</div>
+      <div class="header-sub" id="session-id">SES-0001 · <span id="live-clock"></span></div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="proc-btn" onclick="toggleDarkMode()" style="padding:8px 10px; font-size:16px;">🌙</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" id="tab-active" onclick="switchTab('active')">Activos <span class="tab-badge" id="badge-active">0</span></div>
+  <div class="tab" id="tab-done" onclick="switchTab('done')">Finalizados <span class="tab-badge done" id="badge-done">0</span></div>
+  <div class="tab" id="tab-export" onclick="switchTab('export')">Exportar</div>
+</div>
+
+<div style="flex:1; overflow:hidden; display:flex; flex-direction:column; position:relative;">
+  <div class="filter-bar" id="filter-bar">
+    <div class="filter-chip active" onclick="setFilter('all', this)">Todos</div>
+    <div class="filter-chip" onclick="setFilter('waiting', this)">Esperando</div>
+    <div class="filter-chip" onclick="setFilter('ordering', this)">Pedido</div>
+    <div class="filter-chip" onclick="setFilter('cashier', this)">Caja</div>
+    <div class="filter-chip" onclick="setFilter('preparing', this)">Preparación</div>
+    <div class="filter-chip" onclick="setFilter('ready', this)">Listo</div>
+  </div>
+  
+  <div class="main" id="main-content"></div>
+</div>
+
+<button class="fab" id="fab-btn" onclick="openNewClient()">+</button>
+<div class="toast" id="toast"></div>
+
+<!-- NEW CLIENT MODAL -->
+<div class="modal-backdrop" id="modal" style="display:none;" onclick="closeModalBackdrop(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo cliente</div>
+    <div class="modal-field">
+      <div class="modal-label">Nombre / Etiqueta</div>
+      <input class="modal-input" id="new-name" placeholder="Ej: Mesa 3, Juan..." />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Tamaño del grupo</div>
+      <input class="modal-input" id="new-group" type="number" min="1" value="1" />
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Tipo de pedido</div>
+      <div class="chip-row" id="order-type-chips">
+        <div class="chip selected" onclick="selectChip(this,'order-type-chips')">Para aquí</div>
+        <div class="chip" onclick="selectChip(this,'order-type-chips')">Para llevar</div>
+        <div class="chip" onclick="selectChip(this,'order-type-chips')">Delivery</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn secondary" onclick="closeModal()">Cancelar</button>
+      <button class="modal-btn primary" onclick="createClient()">Crear + Llegada</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SESSION_ID = 'SES-' + String(Math.floor(Math.random()*9000)+1000);
+document.getElementById('session-id').innerHTML = SESSION_ID + ' · <span id="live-clock"></span>';
+
+let clients = JSON.parse(localStorage.getItem('cafetrack_clients') || '[]');
+let clientCounter = parseInt(localStorage.getItem('cafetrack_counter') || '1');
+let currentTab = 'active';
+let currentFilter = 'all';
+let timers = {};
+
+const EVENT_LABELS = [
+  { key:'arrival',       label:'🚶 Llegada',        prereq: null },
+  { key:'order_start',   label:'📋 Inicio pedido',  prereq: 'arrival' },
+  { key:'order_end',     label:'✅ Fin pedido',      prereq: 'order_start' },
+  { key:'prep_start',    label:'🍳 Inicio prep.',    prereq: 'order_end' },
+  { key:'prep_end',      label:'✔️ Fin prep.',       prereq: 'prep_start' },
+  { key:'delivery',      label:'🛎️ Entrega',         prereq: 'prep_end' },
+  { key:'cashier_start', label:'💳 Inicio caja',     prereq: 'delivery' },
+  { key:'cashier_end',   label:'🧾 Fin caja/Pago',  prereq: 'cashier_start' },
+  { key:'departure',     label:'🚪 Salida',          prereq: 'cashier_end' },
+];
+
+const PROCESSES = [
+  { key:'oven', label:'Horno', icon:'🔥' },
+  { key:'coffee_machine', label:'Cafetera', icon:'☕' },
+  { key:'microwave', label:'Microondas', icon:'📡' },
+  { key:'blender', label:'Licuadora', icon:'🥤' },
+];
+
+const STATUS_MAP = {
+  waiting:  { label:'Esperando',  dot:'waiting' },
+  ordering: { label:'Pedido',     dot:'ordering' },
+  cashier:  { label:'En caja',    dot:'cashier' },
+  preparing:{ label:'Preparando', dot:'preparing' },
+  ready:    { label:'Listo',      dot:'ready' },
+  done:     { label:'Finalizado', dot:'done' },
+};
+
+function save() {
+  localStorage.setItem('cafetrack_clients', JSON.stringify(clients));
+  localStorage.setItem('cafetrack_counter', String(clientCounter));
+}
+
+function getStatus(c) {
+  if (c.finished) return 'done';
+  if (c.events.cashier_start && !c.events.cashier_end) return 'cashier';
+  if (c.events.cashier_end) return 'ready';
+  if (c.events.prep_start && !c.events.prep_end) return 'preparing';
+  if (c.events.prep_end || c.events.delivery) return 'ready';
+  if (c.events.order_start) return 'ordering';
+  return 'waiting';
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toTimeString().slice(0,8);
+}
+
+function elapsed(ts) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  const m = Math.floor(s/60), sec = s%60;
+  return m + ':' + String(sec).padStart(2,'0');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function updateClocks() {
+  const el = document.getElementById('live-clock');
+  if (el) el.textContent = new Date().toTimeString().slice(0,8);
+  document.querySelectorAll('[data-timer]').forEach(el => {
+    const id = el.dataset.timer;
+    const c = clients.find(x => x.id === id);
+    if (c && c.events.arrival && !c.finished) {
+      el.textContent = elapsed(c.events.arrival);
+    }
+  });
+}
+setInterval(updateClocks, 1000);
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('filter-bar').style.display = (tab === 'active') ? 'flex' : 'none';
+  document.getElementById('fab-btn').style.display = (tab === 'export') ? 'none' : 'flex';
+  render();
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function render() {
+  const cont = document.getElementById('main-content');
+  const active = clients.filter(c => !c.finished);
+  const done = clients.filter(c => c.finished);
+  document.getElementById('badge-active').textContent = active.length;
+  document.getElementById('badge-done').textContent = done.length;
+
+  if (currentTab === 'active') {
+    let list = active;
+    if (currentFilter !== 'all') list = list.filter(c => getStatus(c) === currentFilter);
+    if (list.length === 0) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-icon">☕</div><div class="empty-text">Sin clientes activos</div><div class="empty-sub">Presiona + para registrar un nuevo cliente</div></div>`;
+      return;
+    }
+    cont.innerHTML = list.map(c => renderCard(c)).join('');
+  } else if (currentTab === 'done') {
+    if (done.length === 0) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">Sin clientes finalizados</div><div class="empty-sub">Los clientes completados aparecerán aquí</div></div>`;
+      return;
+    }
+    cont.innerHTML = done.map(c => renderHistoryItem(c)).join('');
+  } else if (currentTab === 'export') {
+    renderExport(cont);
+  }
+}
+
+function renderCard(c) {
+  const status = getStatus(c);
+  const sm = STATUS_MAP[status];
+  const expanded = c.expanded !== false;
+  
+  let eventsHtml = EVENT_LABELS.map(ev => {
+    const done = !!c.events[ev.key];
+    const locked = ev.prereq && !c.events[ev.prereq];
+    let cls = 'event-btn';
+    if (done) cls += ' done-btn';
+    if (locked && !done) cls += ' locked';
+    const timeStr = done ? fmtTime(c.events[ev.key]) : '';
+    return `<button class="${cls}" onclick="recordEvent('${c.id}','${ev.key}')" ${locked && !done ? 'disabled' : ''}>
+      <span class="event-label">${ev.label}</span>
+      ${done ? `<span class="event-time">✓ ${timeStr}</span>` : ''}
+    </button>`;
+  }).join('');
+
+  let processesHtml = PROCESSES.map(p => {
+    const proc = c.processes[p.key] || {};
+    const running = proc.start && !proc.end;
+    const pdone = proc.start && proc.end;
+    let btnLabel = 'Iniciar', btnCls = 'proc-btn';
+    if (running) { btnLabel = 'Finalizar'; btnCls += ' running'; }
+    if (pdone) { btnLabel = 'Listo'; btnCls += ' proc-done'; }
+    return `<div class="process-row">
+      <div class="process-label">
+        <span class="process-icon">${p.icon}</span>${p.label}
+        ${running ? '<span class="status-dot preparing" style="width:7px;height:7px;"></span>' : ''}
+        ${pdone ? '<span class="status-dot ready" style="width:7px;height:7px;"></span>' : ''}
+      </div>
+      <div style="text-align:right">
+        <button class="${btnCls}" onclick="toggleProcess('${c.id}','${p.key}')" ${pdone ? 'disabled' : ''}>${btnLabel}</button>
+        ${proc.start ? `<span class="proc-time">${fmtTime(proc.start)}${proc.end ? ' → '+fmtTime(proc.end) : ' →?'}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  const orderTypeOpts = ['Para aquí','Para llevar','Delivery'].map(o =>
+    `<option ${c.attrs.order_type === o ? 'selected' : ''}>${o}</option>`).join('');
+  const paymentOpts = ['Efectivo','Tarjeta','Transferencia','Nequi','Otro'].map(o =>
+    `<option ${c.attrs.payment === o ? 'selected' : ''}>${o}</option>`).join('');
+
+  const items = c.order_items || [];
+  const totalItems = items.reduce((s,i) => s + i.qty, 0);
+  const itemsHtml = items.map((item, idx) => {
+    const catCls = item.cat === 'Comida' ? 'food' : item.cat === 'Bebida' ? 'drink' : 'extra';
+    return `<div class="item-row">
+      <button class="item-qty-btn" onclick="changeItemQty('${c.id}',${idx},-1)">−</button>
+      <span class="item-qty">${item.qty}</span>
+      <button class="item-qty-btn" onclick="changeItemQty('${c.id}',${idx},1)">+</button>
+      <span class="item-name">${item.name}</span>
+      <span class="item-cat ${catCls}">${item.cat}</span>
+      <button class="item-del" onclick="removeItem('${c.id}',${idx})">✕</button>
+    </div>`;
+  }).join('');
+
+  const cashierDur = (c.events.cashier_start && c.events.cashier_end)
+    ? Math.round((c.events.cashier_end - c.events.cashier_start)/1000) + 's'
+    : '';
+
+  return `<div class="client-card active-card" id="card-${c.id}">
+    <div class="card-header">
+      <div>
+        <div class="card-id">#${c.id}</div>
+        <div class="card-name">${c.name}${c.events.cashier_start && !c.events.cashier_end ? '<span class="cashier-badge in-cashier">💳 En caja</span>' : ''}${c.events.cashier_end ? '<span class="cashier-badge paid">✓ Pagado</span>' : ''}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="card-status">
+          <div class="status-dot ${sm.dot}"></div>
+          <span class="status-text">${sm.label}</span>
+        </div>
+        <div class="card-timer" data-timer="${c.id}">${c.events.arrival ? elapsed(c.events.arrival) : '--:--'}</div>
+      </div>
+    </div>
+    <div class="collapse-content" style="max-height:${expanded ? '3000px' : '0'}">
+      <div class="events-section">
+        <div class="section-label">Eventos</div>
+        <div class="events-grid">${eventsHtml}</div>
+        ${cashierDur ? `<div style="margin-top:6px;font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">⏱ Tiempo en caja: <span style="color:var(--amber);font-weight:600;">${cashierDur}</span></div>` : ''}
+      </div>
+      <div class="items-section">
+        <div class="section-label">Ítems del pedido</div>
+        <div class="items-summary">Total: <span>${totalItems}</span> ítem${totalItems !== 1 ? 's' : ''} · ${items.length} producto${items.length !== 1 ? 's' : ''}</div>
+        ${itemsHtml}
+        <div class="add-item-row">
+          <input class="add-item-input" id="item-name-${c.id}" placeholder="Nombre del ítem..." onkeydown="if(event.key==='Enter')addItem('${c.id}')" />
+          <select class="add-item-cat" id="item-cat-${c.id}">
+            <option value="Comida">🍞</option>
+            <option value="Bebida">☕</option>
+            <option value="Extra">⭐</option>
+          </select>
+          <button class="add-item-btn" onclick="addItem('${c.id}')">+</button>
+        </div>
+      </div>
+      <div class="parallel-section">
+        <div class="section-label">Procesos paralelos</div>
+        ${processesHtml}
+      </div>
+      <div class="attrs-section">
+        <div class="section-label">Datos del pedido</div>
+        <div class="attrs-grid">
+          <div class="attr-field">
+            <div class="attr-label">Grupo</div>
+            <input class="attr-input" type="number" min="1" value="${c.attrs.group_size||1}" onchange="updateAttr('${c.id}','group_size',this.value)" />
+          </div>
+          <div class="attr-field">
+            <div class="attr-label">Tipo pedido</div>
+            <select class="attr-input" onchange="updateAttr('${c.id}','order_type',this.value)">${orderTypeOpts}</select>
+          </div>
+          <div class="attr-field">
+            <div class="attr-label">Pago</div>
+            <select class="attr-input" onchange="updateAttr('${c.id}','payment',this.value)">${paymentOpts}</select>
+          </div>
+          <div class="attr-field">
+            <div class="attr-label">Extras</div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="extra-${c.id}" ${c.attrs.has_extras?'checked':''} onchange="updateAttr('${c.id}','has_extras',this.checked)" />
+              <label for="extra-${c.id}">Con extras</label>
+            </div>
+            ${c.attrs.has_extras ? `<input class="attr-input" style="padding:6px 8px;font-size:12px;" placeholder="Describir..." value="${c.attrs.extras_text||''}" onchange="updateAttr('${c.id}','extras_text',this.value)" />` : ''}
+          </div>
+          <div class="attr-field" style="grid-column:1/-1">
+            <div class="attr-label">Notas</div>
+            <textarea class="attr-input notes-input" placeholder="Observaciones..." onchange="updateAttr('${c.id}','notes',this.value)">${c.attrs.notes||''}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="action-btn expand-btn ${expanded ? 'expanded' : ''}" onclick="toggleExpand('${c.id}')">${expanded ? '▲ Colapsar' : '▼ Expandir'}</button>
+      <button class="action-btn finish-btn" onclick="finishClient('${c.id}')">✓ Finalizar</button>
+    </div>
+  </div>`;
+}
+
+function renderHistoryItem(c) {
+  const dur = (c.events.arrival && c.events.departure)
+    ? Math.round((c.events.departure - c.events.arrival) / 60000) + ' min'
+    : c.events.arrival ? Math.round((Date.now() - c.events.arrival) / 60000) + ' min' : '—';
+  const totalItems = (c.order_items||[]).reduce((s,i) => s + i.qty, 0);
+  const cashierDur = (c.events.cashier_start && c.events.cashier_end)
+    ? ' · 💳 ' + Math.round((c.events.cashier_end - c.events.cashier_start)/1000) + 's caja' : '';
+  return `<div class="history-item">
+    <div class="history-dot" style="background:var(--green);"></div>
+    <div class="history-info">
+      <div class="history-id">#${c.id}</div>
+      <div class="history-name">${c.name}</div>
+      <div class="history-time">${c.attrs.order_type||'—'} · ${dur} · ${totalItems} ítems${cashierDur}</div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;">${fmtTime(c.finished_at)}</div>
+  </div>`;
+}
+
+function renderExport(cont) {
+  const total = clients.length;
+  const active = clients.filter(c => !c.finished).length;
+  const avgTime = (() => {
+    const completed = clients.filter(c => c.events.arrival && c.events.departure);
+    if (!completed.length) return '—';
+    const avg = completed.reduce((s,c) => s + (c.events.departure - c.events.arrival), 0) / completed.length;
+    return Math.round(avg/60000) + ' min';
+  })();
+
+  cont.innerHTML = `<div class="export-page">
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-lbl">Total clientes</div></div>
+      <div class="stat-card"><div class="stat-val">${active}</div><div class="stat-lbl">Activos</div></div>
+      <div class="stat-card"><div class="stat-val">${total - active}</div><div class="stat-lbl">Finalizados</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:20px;">${avgTime}</div><div class="stat-lbl">Tiempo prom.</div></div>
+    </div>
+    <button class="big-btn export-xlsx" onclick="exportXLSX()">📊 Exportar Excel (.xlsx)</button>
+    <button class="big-btn export-csv" onclick="exportCSV()">📄 Exportar CSV (.csv)</button>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px;">
+      <div class="section-label" style="margin-bottom:8px;">Columnas incluidas</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.8;">ID · Nombre · Llegada · Inicio pedido · Fin pedido · <strong style="color:var(--amber)">Inicio caja · Fin caja · Tiempo en caja (s)</strong> · Inicio prep. · Fin prep. · Entrega · Salida · Tiempo total · Grupo · Nº ítems · <strong style="color:var(--cyan)">Detalle ítems</strong> · Tipo pedido · Pago · Horno · Cafetera · Microondas · Licuadora · Extras · Notas</div>
+    </div>
+    <button class="big-btn danger" onclick="clearAll()">🗑️ Limpiar todos los datos</button>
+  </div>`;
+}
+
+function openNewClient() {
+  document.getElementById('modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('new-name').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('modal').style.display = 'none';
+}
+
+function closeModalBackdrop(e) {
+  if (e.target === document.getElementById('modal')) closeModal();
+}
+
+function selectChip(el, groupId) {
+  document.querySelectorAll('#' + groupId + ' .chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function getSelectedChip(groupId) {
+  const sel = document.querySelector('#' + groupId + ' .chip.selected');
+  return sel ? sel.textContent : '';
+}
+
+function createClient() {
+  const name = document.getElementById('new-name').value.trim() || 'Cliente ' + clientCounter;
+  const group = parseInt(document.getElementById('new-group').value) || 1;
+  const orderType = getSelectedChip('order-type-chips');
+  const id = 'C' + String(clientCounter).padStart(3,'0');
+  clientCounter++;
+
+  const c = {
+    id, name,
+    events: { arrival: Date.now() },
+    processes: {},
+    attrs: { group_size: group, order_type: orderType, payment: 'Efectivo', has_extras: false, extras_text: '', notes: '' },
+    order_items: [],
+    expanded: true,
+    finished: false,
+    finished_at: null,
+    created_at: Date.now(),
+    session: SESSION_ID,
+  };
+  clients.unshift(c);
+  save();
+  closeModal();
+  document.getElementById('new-name').value = '';
+  switchTab('active');
+  showToast('✓ ' + name + ' registrado — Llegada: ' + fmtTime(c.events.arrival));
+}
+
+function recordEvent(id, key) {
+  const c = clients.find(x => x.id === id);
+  if (!c || c.events[key]) { showToast('⚠ Evento ya registrado'); return; }
+  const ev = EVENT_LABELS.find(e => e.key === key);
+  if (ev && ev.prereq && !c.events[ev.prereq]) { showToast('⚠ Complete el paso anterior primero'); return; }
+  c.events[key] = Date.now();
+  save();
+  render();
+  showToast('✓ ' + (ev ? ev.label : key) + ' — ' + fmtTime(c.events[key]));
+}
+
+function toggleProcess(id, procKey) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  if (!c.processes[procKey]) c.processes[procKey] = {};
+  const proc = c.processes[procKey];
+  if (!proc.start) {
+    proc.start = Date.now();
+    const p = PROCESSES.find(x => x.key === procKey);
+    showToast('▶ ' + (p ? p.label : procKey) + ' iniciado');
+  } else if (!proc.end) {
+    proc.end = Date.now();
+    const p = PROCESSES.find(x => x.key === procKey);
+    const dur = Math.round((proc.end - proc.start)/1000);
+    showToast('⏹ ' + (p ? p.label : procKey) + ' finalizado (' + dur + 's)');
+  }
+  save();
+  render();
+}
+
+function updateAttr(id, key, value) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  if (key === 'has_extras') c.attrs[key] = value;
+  else c.attrs[key] = value;
+  save();
+  if (key === 'has_extras') render();
+}
+
+function toggleExpand(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  c.expanded = !c.expanded;
+  save();
+  render();
+}
+
+function addItem(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  const nameEl = document.getElementById('item-name-' + id);
+  const catEl = document.getElementById('item-cat-' + id);
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { showToast('⚠ Escribe el nombre del ítem'); return; }
+  const cat = catEl ? catEl.value : 'Comida';
+  if (!c.order_items) c.order_items = [];
+  const existing = c.order_items.find(i => i.name.toLowerCase() === name.toLowerCase() && i.cat === cat);
+  if (existing) { existing.qty++; }
+  else { c.order_items.push({ name, cat, qty: 1 }); }
+  save();
+  render();
+  showToast('✓ + ' + name);
+}
+
+function changeItemQty(id, idx, delta) {
+  const c = clients.find(x => x.id === id);
+  if (!c || !c.order_items[idx]) return;
+  c.order_items[idx].qty += delta;
+  if (c.order_items[idx].qty <= 0) c.order_items.splice(idx, 1);
+  save();
+  render();
+}
+
+function removeItem(id, idx) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  c.order_items.splice(idx, 1);
+  save();
+  render();
+}
+
+function finishClient(id) {
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  c.finished = true;
+  c.finished_at = Date.now();
+  save();
+  render();
+  showToast('✓ Cliente ' + c.name + ' finalizado');
+}
+
+function buildRows() {
+  return clients.map(c => {
+    const dur = (c.events.arrival && c.events.departure)
+      ? ((c.events.departure - c.events.arrival)/60000).toFixed(1)
+      : c.events.arrival && c.finished_at
+        ? ((c.finished_at - c.events.arrival)/60000).toFixed(1)
+        : '';
+    const cashierDur = (c.events.cashier_start && c.events.cashier_end)
+      ? Math.round((c.events.cashier_end - c.events.cashier_start)/1000)
+      : '';
+    const items = c.order_items || [];
+    const totalItems = items.reduce((s,i) => s + i.qty, 0);
+    const itemsList = items.map(i => i.qty + 'x ' + i.name + ' (' + i.cat + ')').join('; ');
+    const row = {
+      'Sesión': c.session,
+      'ID Cliente': c.id,
+      'Nombre': c.name,
+      'Llegada': fmtTime(c.events.arrival),
+      'Inicio Pedido': fmtTime(c.events.order_start),
+      'Fin Pedido': fmtTime(c.events.order_end),
+      'Inicio Preparación': fmtTime(c.events.prep_start),
+      'Fin Preparación': fmtTime(c.events.prep_end),
+      'Entrega': fmtTime(c.events.delivery),
+      'Inicio Caja': fmtTime(c.events.cashier_start),
+      'Fin Caja/Pago': fmtTime(c.events.cashier_end),
+      'Tiempo en Caja (s)': cashierDur,
+      'Salida': fmtTime(c.events.departure),
+      'Tiempo Total (min)': dur,
+      'Tamaño Grupo': c.attrs.group_size,
+      'Nº Ítems': totalItems,
+      'Detalle Ítems': itemsList,
+      'Tipo Pedido': c.attrs.order_type,
+      'Tipo Pago': c.attrs.payment,
+    };
+    PROCESSES.forEach(p => {
+      const proc = c.processes[p.key] || {};
+      row['Inicio ' + p.label] = fmtTime(proc.start);
+      row['Fin ' + p.label] = fmtTime(proc.end);
+      row['Dur. ' + p.label + ' (s)'] = (proc.start && proc.end) ? Math.round((proc.end - proc.start)/1000) : '';
+    });
+    row['Extras'] = c.attrs.has_extras ? (c.attrs.extras_text || 'Sí') : 'No';
+    row['Notas'] = c.attrs.notes || '';
+    row['Estado'] = c.finished ? 'Finalizado' : 'Activo';
+    return row;
+  });
+}
+
+function exportXLSX() {
+  if (!clients.length) { showToast('⚠ Sin datos para exportar'); return; }
+  const rows = buildRows();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+  const fname = 'cafetrack_' + new Date().toISOString().slice(0,10) + '.xlsx';
+  XLSX.writeFile(wb, fname);
+  showToast('✓ Excel exportado');
+}
+
+function exportCSV() {
+  if (!clients.length) { showToast('⚠ Sin datos para exportar'); return; }
+  const rows = buildRows();
+  const keys = Object.keys(rows[0]);
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => '"' + (r[k]||'') + '"').join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cafetrack_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('✓ CSV exportado');
+}
+
+function clearAll() {
+  if (!confirm('¿Eliminar todos los datos? Esta acción no se puede deshacer.')) return;
+  clients = [];
+  clientCounter = 1;
+  save();
+  render();
+  showToast('✓ Datos eliminados');
+}
+
+function toggleDarkMode() {
+  document.documentElement.classList.toggle('light-mode');
+}
+
+render();
+updateClocks();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
