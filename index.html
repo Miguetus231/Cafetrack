@@ -833,9 +833,15 @@ function renderExport(cont) {
     <button class="big-btn export-xlsx" onclick="exportXLSX()">📊 Exportar Excel (.xlsx)</button>
     <button class="big-btn export-csv"  onclick="exportCSV()">📄 Exportar CSV (.csv)</button>
     <div class="columns-info">
-      <div class="section-label" style="margin-bottom:8px;">Columnas incluidas</div>
-      <div style="font-size:12px;color:var(--text2);line-height:1.9;">
-        ID · Nombre · Llegada · Inicio pedido · Fin pedido · <strong style="color:var(--amber)">Inicio caja · Fin caja · Tiempo en caja (s)</strong> · Inicio prep. · Fin prep. · Entrega · Salida · Tiempo total · Grupo · Nº ítems · <strong style="color:var(--cyan)">Detalle ítems</strong> · Tipo pedido · Pago · Horno · Cafetera · Microondas · Licuadora · Extras · Notas
+      <div class="section-label" style="margin-bottom:12px;">Esquema de columnas (listo para análisis)</div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:12px;line-height:1.8;">
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);margin-bottom:3px;">IDENTIFICADORES</div><div style="color:var(--text2);">sesion · id_cliente · nombre · estado</div></div>
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);margin-bottom:3px;">ATRIBUTOS</div><div style="color:var(--text2);">tipo_pedido · tipo_pago · tamano_grupo · tiene_extras (0/1) · desc_extras · notas</div></div>
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--amber);margin-bottom:3px;">TIEMPO ABSOLUTO (solo llegada)</div><div style="color:var(--text2);">hora_llegada (HH:MM:SS) · iat_s</div></div>
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--cyan);margin-bottom:3px;">TIEMPOS RELATIVOS A LLEGADA (s)</div><div style="color:var(--text2);">t_inicio_pedido_s · t_fin_pedido_s · t_inicio_prep_s · t_fin_prep_s · t_entrega_s · t_inicio_caja_s · t_fin_caja_s · t_salida_s</div></div>
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--green);margin-bottom:3px;">DURACIONES POR ETAPA (s con ms)</div><div style="color:var(--text2);">dur_pedido_s · dur_prep_s · dur_caja_s · dur_sistema_s</div></div>
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--purple);margin-bottom:3px;">TIEMPOS DE ESPERA (s)</div><div style="color:var(--text2);">espera_hasta_pedido_s · espera_hasta_prep_s · espera_hasta_caja_s</div></div>
+        <div><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);margin-bottom:3px;">ÍTEMS Y PROCESOS</div><div style="color:var(--text2);">items_total · items_comida · items_bebida · items_extra · productos_distintos · items_detalle · t/dur horno, cafetera, microondas, licuadora</div></div>
       </div>
     </div>
     <button class="big-btn danger" onclick="clearAll()">🗑️ Limpiar todos los datos</button>
@@ -968,42 +974,91 @@ function finishClient(id) {
 
 /* ── EXPORT ── */
 function buildRows() {
-  return clients.map(c => {
-    const dur = (c.events.arrival && c.events.departure)
-      ? ((c.events.departure-c.events.arrival)/60000).toFixed(1)
-      : c.events.arrival && c.finished_at
-        ? ((c.finished_at-c.events.arrival)/60000).toFixed(1) : '';
-    const cashierDur = (c.events.cashier_start && c.events.cashier_end)
-      ? Math.round((c.events.cashier_end-c.events.cashier_start)/1000) : '';
-    const items = c.order_items || [];
+  // Ordenar por hora de llegada para calcular IAT correctamente
+  const sorted = [...clients].sort((a,b) => (a.events.arrival||0)-(b.events.arrival||0));
+
+  // Helper: segundos transcurridos desde llegada (3 decimales = precisión ms)
+  const elSec = (arrival, ts) => (arrival && ts) ? +((ts-arrival)/1000).toFixed(3) : '';
+  // Helper: duración entre dos timestamps en segundos
+  const durSec = (t1, t2) => (t1 && t2) ? +((t2-t1)/1000).toFixed(3) : '';
+  // Helper: timestamp absoluto legible solo para llegada
+  const hhmm = (ts) => ts ? new Date(ts).toTimeString().slice(0,8) : '';
+
+  return sorted.map((c, idx) => {
+    const arr = c.events.arrival || 0;
+    const prev = sorted[idx-1];
+    const iat = (prev && prev.events.arrival && arr)
+      ? +((arr - prev.events.arrival)/1000).toFixed(3) : '';
+
+    const items   = c.order_items || [];
+    const n_total = items.reduce((s,i)=>s+i.qty, 0);
+    const n_comida = items.filter(i=>i.cat==='Comida').reduce((s,i)=>s+i.qty, 0);
+    const n_bebida = items.filter(i=>i.cat==='Bebida').reduce((s,i)=>s+i.qty, 0);
+    const n_extra  = items.filter(i=>i.cat==='Extra').reduce((s,i)=>s+i.qty, 0);
+    const n_prod_distintos = items.length;
+
+    // Tiempo total en sistema
+    const fin = c.events.departure || c.finished_at || null;
+
     const row = {
-      'Sesión': c.session, 'ID Cliente': c.id, 'Nombre': c.name,
-      'Llegada': fmtTime(c.events.arrival),
-      'Inicio Pedido': fmtTime(c.events.order_start),
-      'Fin Pedido': fmtTime(c.events.order_end),
-      'Inicio Preparación': fmtTime(c.events.prep_start),
-      'Fin Preparación': fmtTime(c.events.prep_end),
-      'Entrega': fmtTime(c.events.delivery),
-      'Inicio Caja': fmtTime(c.events.cashier_start),
-      'Fin Caja/Pago': fmtTime(c.events.cashier_end),
-      'Tiempo en Caja (s)': cashierDur,
-      'Salida': fmtTime(c.events.departure),
-      'Tiempo Total (min)': dur,
-      'Tamaño Grupo': c.attrs.group_size,
-      'Nº Ítems': items.reduce((s,i)=>s+i.qty,0),
-      'Detalle Ítems': items.map(i=>i.qty+'x '+i.name+' ('+i.cat+')').join('; '),
-      'Tipo Pedido': c.attrs.order_type,
-      'Tipo Pago': c.attrs.payment,
+      /* ── IDENTIFICADORES ── */
+      'sesion':              c.session,
+      'id_cliente':          c.id,
+      'nombre':              c.name,
+
+      /* ── ATRIBUTOS DEL CLIENTE ── */
+      'tipo_pedido':         c.attrs.order_type || '',
+      'tipo_pago':           c.attrs.payment || '',
+      'tamano_grupo':        c.attrs.group_size || 1,
+      'tiene_extras':        c.attrs.has_extras ? 1 : 0,
+      'desc_extras':         c.attrs.has_extras ? (c.attrs.extras_text||'') : '',
+      'notas':               c.attrs.notes || '',
+      'estado':              c.finished ? 'Finalizado' : 'Activo',
+
+      /* ── TIEMPO DE LLEGADA (único absoluto) ── */
+      'hora_llegada':        hhmm(arr),
+
+      /* ── TIEMPO ENTRE LLEGADAS ── */
+      'iat_s':               iat,
+
+      /* ── TIEMPOS RELATIVOS A LLEGADA (s desde llegada) ── */
+      't_inicio_pedido_s':   elSec(arr, c.events.order_start),
+      't_fin_pedido_s':      elSec(arr, c.events.order_end),
+      't_inicio_prep_s':     elSec(arr, c.events.prep_start),
+      't_fin_prep_s':        elSec(arr, c.events.prep_end),
+      't_entrega_s':         elSec(arr, c.events.delivery),
+      't_inicio_caja_s':     elSec(arr, c.events.cashier_start),
+      't_fin_caja_s':        elSec(arr, c.events.cashier_end),
+      't_salida_s':          elSec(arr, c.events.departure),
+
+      /* ── DURACIONES DE CADA ETAPA (s) ── */
+      'dur_pedido_s':        durSec(c.events.order_start,   c.events.order_end),
+      'dur_prep_s':          durSec(c.events.prep_start,    c.events.prep_end),
+      'dur_caja_s':          durSec(c.events.cashier_start, c.events.cashier_end),
+      'dur_sistema_s':       durSec(arr, fin),
+
+      /* ── TIEMPOS DE ESPERA (s) ── */
+      'espera_hasta_pedido_s':  elSec(arr, c.events.order_start),
+      'espera_hasta_prep_s':    durSec(c.events.order_end, c.events.prep_start),
+      'espera_hasta_caja_s':    durSec(c.events.delivery,  c.events.cashier_start),
+
+      /* ── ÍTEMS DEL PEDIDO ── */
+      'items_total':         n_total,
+      'items_comida':        n_comida,
+      'items_bebida':        n_bebida,
+      'items_extra':         n_extra,
+      'productos_distintos': n_prod_distintos,
+      'items_detalle':       items.map(i=>i.qty+'x_'+i.name.replace(/ /g,'_')+'['+i.cat+']').join('; '),
     };
+
+    /* ── PROCESOS PARALELOS ── */
     PROCESSES.forEach(p => {
       const proc = c.processes[p.key] || {};
-      row['Inicio '+p.label] = fmtTime(proc.start);
-      row['Fin '+p.label]    = fmtTime(proc.end);
-      row['Dur. '+p.label+' (s)'] = (proc.start && proc.end) ? Math.round((proc.end-proc.start)/1000) : '';
+      row['t_inicio_'+p.key+'_s'] = elSec(arr, proc.start);
+      row['t_fin_'+p.key+'_s']    = elSec(arr, proc.end);
+      row['dur_'+p.key+'_s']      = durSec(proc.start, proc.end);
     });
-    row['Extras'] = c.attrs.has_extras ? (c.attrs.extras_text || 'Sí') : 'No';
-    row['Notas']  = c.attrs.notes || '';
-    row['Estado'] = c.finished ? 'Finalizado' : 'Activo';
+
     return row;
   });
 }
